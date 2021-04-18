@@ -23,6 +23,7 @@ const sourceStrings = {
 const t = i18n(sourceStrings);
 console.log('🚀 Starting tests...');
 
+
 const testFormat = 'Добрый вечор, me!' === t.hello({ username: 'me' });
 console.assert(testFormat, '  ❌ First level failed!');
 
@@ -40,23 +41,14 @@ if (testDepth && testDepthFmt && testFormat)
 // === implementation ===
 
 type Input<T> = {
-  [key: string]: (Input<T> | string);
+  [key: string]: Input<T> | string;
 };
-
-// Если написано [key: string]: ((params?: ParamsType) => string), то не ругается в вызове функции (t.hello({ username: 'me' })), 
-// но ругается, если обращаюсь к вложенному объекту 
-
-// Если Result<T>, то ругается в вызове функции.
-// Но сделать одновременно и то и то не получется
-
-// Если делаю yarn start, то билд происходит, но с ошибками TS. Если запустить index.js, то все работает отлично
-// Совершенно нет идей, как это починить
 
 type Result<T> = {
-  [key: string]: ((params?: ParamsType) => string) | Result<T>;
+  [K in keyof T]: T[K] extends string ? ((params?: ParamsType) => string) : Result<T[K]>
 };
 
-type ParamsType = Record<string | number | symbol, string>
+type ParamsType = Record<string | number | symbol, string | number>
 
 function i18n<T extends Input<T>>(strings: T): Result<T> {
   return getFormattedObject(strings)
@@ -66,18 +58,20 @@ function i18n<T extends Input<T>>(strings: T): Result<T> {
 function getFormattedObject<T extends Input<T>>(strings: T): Result<T> {
   const returnObj = {} as Result<T>
   for (let key in strings) {
+    let value = null
     if (typeof strings[key] === 'object') {
-      returnObj[key] = getFormattedObject(strings[key] as Input<T>)
+      value = getFormattedObject(strings[key] as Input<T>)
     } else if (typeof strings[key] === 'string') {
-      returnObj[key] = (params?: ParamsType) => formatString(strings[key] as string, params)
+      value = (params?: ParamsType) => formatString(strings[key] as string, params)
     }
+    returnObj[key] = value as T[Extract<keyof T, string>] extends string ? (params?: ParamsType) => string : Result<T[Extract<keyof T, string>]>
   }
   return returnObj
 }
 
-function formatString (string: string, params?: ParamsType): string {
+function formatString(string: string, params?: ParamsType): string {
   for (let key in params) {
-    string = string.replace(`{${key}}`, params[key])
+    string = string.replace(`{${key}}`, params[key].toString())
   }
   return string
 }
